@@ -72,6 +72,8 @@ attempt() {
   FACE_CALLS=$(wc -l <"$FACE_LOG")
 }
 reset_tally() { rm -f "$TALLY"/*; }
+# Failures currently recorded for the test user (for diagnostics).
+tally_count() { faillock --dir "$TALLY" --user "$USER_NAME" 2>/dev/null | grep -c -E '^[0-9]{4}-' || true; }
 
 # Assert on the last attempt's PAM result (0 = PAM_SUCCESS).
 expect_success() {
@@ -110,11 +112,16 @@ attempt polkit-1 "" pass
 expect_refused "polkit: after 10 failures a recognised face is locked out too"
 
 reset_tally
+trace=()
 for _ in $(seq 9); do attempt polkit-1 "" fail; done
+trace+=("9 fails: tally=$(tally_count)")
 attempt polkit-1 "" pass
+trace+=("face ok: result=$RESULT tally=$(tally_count)")
 for _ in $(seq 9); do attempt polkit-1 "" fail; done
+trace+=("9 fails: tally=$(tally_count)")
 attempt polkit-1 "$PASSWORD" fail
 expect_success "polkit: a face success resets the failure count"
+[[ $RESULT == 0 ]] || printf '#   %s\n' "${trace[@]}"
 
 # --- omarchy-lock-face: face only, beside the password box ----------------------
 
