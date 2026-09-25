@@ -31,6 +31,9 @@ PASSDB="$TMP/passdb"
 USER_NAME=$(id -un) # pam_faillock needs a real account
 PASSWORD="correct horse"
 mkdir -p "$SERVICES" "$TALLY"
+# An empty faillock.conf: built-in defaults, never the host's /etc/security
+# settings, so results are the same on every machine.
+: >"$TMP/faillock.conf"
 
 cat >"$TMP/face-mock" <<EOF
 #!/bin/sh
@@ -44,7 +47,7 @@ testify() {
   sed -E \
     -e "s#pam_unix\.so.*#$PAM_MATRIX passdb=$PASSDB#" \
     -e "s#pam_howdy\.so.*#pam_exec.so quiet $TMP/face-mock#" \
-    -e "s#(pam_faillock\.so.*)#\1 dir=$TALLY#" \
+    -e "s#(pam_faillock\.so.*)#\1 dir=$TALLY conf=$TMP/faillock.conf#" \
     -e 's#^(-?)(account|password|session)[[:space:]].*#\2 required pam_permit.so#' \
     -e "s#include[[:space:]]+system-auth#include system-auth#" \
     "$1"

@@ -7,7 +7,7 @@ auth       [success=1 default=ignore]  pam_howdy.so
 auth       [default=die]               pam_faillock.so authfail deny=10 unlock_time=120
 auth       optional                    pam_permit.so
 auth       required                    pam_env.so
-auth       required                    pam_faillock.so      authsucc
+auth       required                    pam_faillock.so      authsucc deny=10 unlock_time=120
 
 account    include      system-auth
 password   include      system-auth
