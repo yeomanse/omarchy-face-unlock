@@ -35,6 +35,17 @@ The installer:
 Every PAM file it changes is backed up to `<file>.bak-face-unlock` first.
 Re-running the installer is safe: it changes nothing that's already in place.
 
+## Update
+
+```sh
+omarchy plugin update yeomanse.face-lock
+~/.config/omarchy/plugins/yeomanse.face-lock/install.sh
+```
+
+The first command pulls the new version; re-running the installer then applies
+it (PAM files and the polkit dialog). Running the installer alone won't update
+an already installed plugin.
+
 ## Uninstall
 
 ```sh
