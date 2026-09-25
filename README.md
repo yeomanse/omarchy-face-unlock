@@ -64,6 +64,12 @@ The dialog is a clone of `omarchy.polkit` (in `polkit/`) that notices
 "Scanning face..." while Howdy runs. `omarchy plugin add` installs one plugin
 per repo, so `install.sh` copies this one into place; re-run it to update.
 
+**Fingerprint.** Works alongside Omarchy's fingerprint setup, in either order.
+If `pam_fprintd` is already in `/etc/pam.d/polkit-1`, the installer keeps it (and
+its lid-closed gate) at the top: fingerprint, then password, then face. Setting
+up or removing fingerprint later edits the file in place, which also works.
+sudo gets fingerprint, then face, then password.
+
 **Lockout.** Both face stacks sit behind `pam_faillock`, so after 10 failed
 attempts a recognised face won't get you in either.
 

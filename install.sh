@@ -121,7 +121,11 @@ fi
 step "Adding face unlock to sudo"
 if ! grep -q pam_howdy.so /etc/pam.d/sudo; then
   backup /etc/pam.d/sudo
-  sudo sed -i '/^#%PAM-1.0/a auth       sufficient   pam_howdy.so' /etc/pam.d/sudo
+  if grep -q '^#%PAM-1.0' /etc/pam.d/sudo; then
+    sudo sed -i '/^#%PAM-1.0/a auth       sufficient   pam_howdy.so' /etc/pam.d/sudo
+  else
+    sudo sed -i '1i auth       sufficient   pam_howdy.so' /etc/pam.d/sudo
+  fi
 fi
 echo "Testing: look at the camera..."
 sudo -k
@@ -133,8 +137,23 @@ fi
 
 # ---------------------------------------------------------------------------
 step "Adding face unlock to polkit (password first, empty Enter = face)"
-backup /etc/pam.d/polkit-1 "$HERE/pam/polkit-1"
-sudo install -m 644 "$HERE/pam/polkit-1" /etc/pam.d/polkit-1
+# Omarchy's fingerprint setup puts pam_fprintd (and its lid-closed gate) in
+# /etc/pam.d/polkit-1. Carry those lines over, in order, ahead of our stack so
+# fingerprint keeps working: fingerprint, then password, then face.
+polkit_pam=$(mktemp)
+{
+  echo "#%PAM-1.0"
+  if [[ -f /etc/pam.d/polkit-1 ]] && grep -q pam_fprintd.so /etc/pam.d/polkit-1; then
+    echo
+    echo "# Fingerprint (kept from Omarchy's fingerprint setup)"
+    grep -E '^[[:space:]]*auth[[:space:]].*(pam_fprintd\.so|omarchy-hw-laptop-closed)' /etc/pam.d/polkit-1
+    echo "Keeping fingerprint authentication in polkit" >&2
+  fi
+  grep -v '^#%PAM-1.0' "$HERE/pam/polkit-1"
+} >"$polkit_pam"
+backup /etc/pam.d/polkit-1 "$polkit_pam"
+sudo install -m 644 "$polkit_pam" /etc/pam.d/polkit-1
+rm -f "$polkit_pam"
 
 # ---------------------------------------------------------------------------
 step "Adding the lock screen face PAM service"

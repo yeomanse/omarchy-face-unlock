@@ -24,6 +24,16 @@ sudo rm -f /etc/pam.d/omarchy-lock-face
 
 if [[ -e /etc/pam.d/polkit-1$BAK ]]; then
   sudo mv /etc/pam.d/polkit-1$BAK /etc/pam.d/polkit-1
+elif grep -q pam_fprintd.so /etc/pam.d/polkit-1 2>/dev/null; then
+  # Fingerprint was set up after face unlock: keep its lines on top of the
+  # stock polkit stack, as if it had been added to that.
+  polkit_pam=$(mktemp)
+  {
+    grep -E '^[[:space:]]*auth[[:space:]].*(pam_fprintd\.so|omarchy-hw-laptop-closed)' /etc/pam.d/polkit-1
+    cat /usr/lib/pam.d/polkit-1
+  } >"$polkit_pam"
+  sudo install -m 644 "$polkit_pam" /etc/pam.d/polkit-1
+  rm -f "$polkit_pam"
 else
   # No override existed before; polkit falls back to /usr/lib/pam.d/polkit-1
   sudo rm -f /etc/pam.d/polkit-1
