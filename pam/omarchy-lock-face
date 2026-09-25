@@ -1,0 +1,4 @@
+#%PAM-1.0
+auth       required                    pam_faillock.so preauth silent deny=10 unlock_time=120
+auth       required                    pam_howdy.so
+account    include                     system-local-login
