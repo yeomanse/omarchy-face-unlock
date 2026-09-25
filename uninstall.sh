@@ -1,11 +1,20 @@
 #!/bin/bash
-# Undo install.sh: restore PAM files, switch back to the stock lock screen.
+# Undo install.sh: remove face unlock from PAM, switch back to the stock lock
+# screen and polkit dialog. Fingerprint setup done since install is kept.
 # Howdy and dlib stay installed; remove them with: yay -Rns howdy-git python-dlib
 
 set -euo pipefail
 
 PLUGIN_ID="yeomanse.face-lock"
 BAK=".bak-face-unlock"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STOCK_POLKIT=/usr/lib/pam.d/polkit-1
+
+# shellcheck source=lib/pam.sh
+source "$HERE/lib/pam.sh"
+
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
 
 step() { echo -e "\n\e[32m==> $*\e[0m"; }
 
@@ -22,28 +31,27 @@ omarchy restart shell
 step "Restoring PAM files"
 sudo rm -f /etc/pam.d/omarchy-lock-face
 
+# polkit-1: back to the pre-install file, keeping today's fingerprint choice.
+# With no backup and no fingerprint, remove the override so polkit falls back
+# to the stock stack.
 if [[ -e /etc/pam.d/polkit-1$BAK ]]; then
-  sudo mv /etc/pam.d/polkit-1$BAK /etc/pam.d/polkit-1
-elif grep -q pam_fprintd.so /etc/pam.d/polkit-1 2>/dev/null; then
-  # Fingerprint was set up after face unlock: keep its lines on top of the
-  # stock polkit stack, as if it had been added to that.
-  polkit_pam=$(mktemp)
-  {
-    grep -E '^[[:space:]]*auth[[:space:]].*(pam_fprintd\.so|omarchy-hw-laptop-closed)' /etc/pam.d/polkit-1
-    cat /usr/lib/pam.d/polkit-1
-  } >"$polkit_pam"
-  sudo install -m 644 "$polkit_pam" /etc/pam.d/polkit-1
-  rm -f "$polkit_pam"
+  render_polkit_pam_removed /etc/pam.d/polkit-1 "/etc/pam.d/polkit-1$BAK" >"$TMP/polkit-1"
+  sudo install -m 644 "$TMP/polkit-1" /etc/pam.d/polkit-1
+  sudo rm -f "/etc/pam.d/polkit-1$BAK"
+elif [[ -n $(pam_fingerprint_lines /etc/pam.d/polkit-1) ]]; then
+  render_polkit_pam_removed /etc/pam.d/polkit-1 "$STOCK_POLKIT" >"$TMP/polkit-1"
+  sudo install -m 644 "$TMP/polkit-1" /etc/pam.d/polkit-1
 else
-  # No override existed before; polkit falls back to /usr/lib/pam.d/polkit-1
   sudo rm -f /etc/pam.d/polkit-1
 fi
 
-if [[ -e /etc/pam.d/sudo$BAK ]]; then
-  sudo mv /etc/pam.d/sudo$BAK /etc/pam.d/sudo
-else
-  sudo sed -i '/pam_howdy\.so/d' /etc/pam.d/sudo
+# sudo: remove only our line, so anything changed since install (fingerprint
+# set up or removed) is kept. The backup was only a safety net.
+if [[ -f /etc/pam.d/sudo ]] && grep -q 'pam_howdy\.so' /etc/pam.d/sudo; then
+  render_sudo_pam_removed /etc/pam.d/sudo >"$TMP/sudo"
+  sudo install -m 644 "$TMP/sudo" /etc/pam.d/sudo
 fi
+sudo rm -f "/etc/pam.d/sudo$BAK"
 
 step "Done"
 echo "Remove the plugin files with: omarchy plugin remove $PLUGIN_ID"

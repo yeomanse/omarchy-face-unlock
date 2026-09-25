@@ -17,6 +17,9 @@ PLUGIN_DIR="$HOME/.config/omarchy/plugins/$PLUGIN_ID"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BAK=".bak-face-unlock"
 
+# shellcheck source=lib/pam.sh
+source "$HERE/lib/pam.sh"
+
 step() { echo -e "\n\e[32m==> $*\e[0m"; }
 warn() { echo -e "\e[33m$*\e[0m"; }
 die() { echo -e "\e[31m$*\e[0m" >&2; exit 1; }
@@ -33,6 +36,42 @@ backup() {
   [[ -n ${2:-} ]] && cmp -s "$1" "$2" && return 0
   sudo cp -a "$1" "$1$BAK"
 }
+
+# Install rendered PAM content ($2, a file) at $1: back up the original first,
+# and skip the write when nothing would change.
+install_pam() {
+  local target=$1 rendered=$2
+  [[ -f $target ]] && cmp -s "$target" "$rendered" && return 0
+  backup "$target" "$rendered"
+  sudo install -m 644 "$rendered" "$target"
+}
+
+# The shell discovers new plugin folders asynchronously after a rescan; wait
+# for it (as omarchy-plugin-add does) before enabling.
+wait_for_plugin() {
+  local id=$1 attempt
+  for ((attempt = 0; attempt < 100; attempt++)); do
+    omarchy plugin list --json | jq -e --arg id "$id" 'any(.[]; .id == $id)' >/dev/null && return 0
+    sleep 0.05
+  done
+  die "The shell did not pick up plugin '$id'. Try: omarchy restart shell, then re-run."
+}
+
+# Disable every enabled plugin that replaces $1 (the stock one or a clone of
+# it) other than $2, so only one lock screen / polkit agent is active.
+disable_replacements() {
+  local stock=$1 keep=$2 other
+  omarchy plugin list --json |
+    jq -r --arg stock "$stock" --arg keep "$keep" \
+      '.[] | select(.enabled and .id != $keep and (.id == $stock or .clonedFrom == $stock)) | .id' |
+    while read -r other; do
+      echo "Disabling $other"
+      omarchy plugin disable "$other"
+    done
+}
+
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
 
 # ---------------------------------------------------------------------------
 step "Installing base packages"
@@ -119,20 +158,16 @@ fi
 
 # ---------------------------------------------------------------------------
 step "Adding face unlock to sudo"
-if ! grep -q pam_howdy.so /etc/pam.d/sudo; then
-  backup /etc/pam.d/sudo
-  if grep -q '^#%PAM-1.0' /etc/pam.d/sudo; then
-    sudo sed -i '/^#%PAM-1.0/a auth       sufficient   pam_howdy.so' /etc/pam.d/sudo
-  else
-    sudo sed -i '1i auth       sufficient   pam_howdy.so' /etc/pam.d/sudo
-  fi
-fi
+render_sudo_pam /etc/pam.d/sudo >"$TMP/sudo"
+install_pam /etc/pam.d/sudo "$TMP/sudo"
 echo "Testing: look at the camera..."
 sudo -k
 if ! sudo true; then
-  warn "sudo test failed; restoring /etc/pam.d/sudo with pkexec"
-  pkexec cp -a "/etc/pam.d/sudo$BAK" /etc/pam.d/sudo
-  die "sudo was restored. Check 'sudo howdy test' and /etc/howdy/config.ini, then retry."
+  if [[ -e /etc/pam.d/sudo$BAK ]]; then
+    warn "sudo test failed; restoring /etc/pam.d/sudo with pkexec"
+    pkexec cp -a "/etc/pam.d/sudo$BAK" /etc/pam.d/sudo
+  fi
+  die "sudo test failed. Check /etc/howdy/config.ini and /etc/pam.d/sudo, then retry."
 fi
 
 # ---------------------------------------------------------------------------
@@ -140,24 +175,13 @@ step "Adding face unlock to polkit (password first, empty Enter = face)"
 # Omarchy's fingerprint setup puts pam_fprintd (and its lid-closed gate) in
 # /etc/pam.d/polkit-1. Carry those lines over, in order, ahead of our stack so
 # fingerprint keeps working: fingerprint, then password, then face.
-polkit_pam=$(mktemp)
-{
-  echo "#%PAM-1.0"
-  if [[ -f /etc/pam.d/polkit-1 ]] && grep -q pam_fprintd.so /etc/pam.d/polkit-1; then
-    echo
-    echo "# Fingerprint (kept from Omarchy's fingerprint setup)"
-    grep -E '^[[:space:]]*auth[[:space:]].*(pam_fprintd\.so|omarchy-hw-laptop-closed)' /etc/pam.d/polkit-1
-    echo "Keeping fingerprint authentication in polkit" >&2
-  fi
-  grep -v '^#%PAM-1.0' "$HERE/pam/polkit-1"
-} >"$polkit_pam"
-backup /etc/pam.d/polkit-1 "$polkit_pam"
-sudo install -m 644 "$polkit_pam" /etc/pam.d/polkit-1
-rm -f "$polkit_pam"
+[[ -n $(pam_fingerprint_lines /etc/pam.d/polkit-1) ]] && echo "Keeping fingerprint authentication in polkit"
+render_polkit_pam /etc/pam.d/polkit-1 "$HERE/pam/polkit-1" >"$TMP/polkit-1"
+install_pam /etc/pam.d/polkit-1 "$TMP/polkit-1"
 
 # ---------------------------------------------------------------------------
 step "Adding the lock screen face PAM service"
-sudo install -m 644 "$HERE/pam/omarchy-lock-face" /etc/pam.d/omarchy-lock-face
+install_pam /etc/pam.d/omarchy-lock-face "$HERE/pam/omarchy-lock-face"
 
 # ---------------------------------------------------------------------------
 step "Installing the lock screen plugin"
@@ -167,12 +191,8 @@ fi
 
 # Only one lock screen may own the session lock: switch off the stock one and
 # any other clone of it before enabling ours.
-omarchy plugin list --json |
-  jq -r --arg me "$PLUGIN_ID" '.[] | select(.enabled and .id != $me and (.id == "omarchy.lock" or .clonedFrom == "omarchy.lock")) | .id' |
-  while read -r other; do
-    echo "Disabling $other"
-    omarchy plugin disable "$other"
-  done
+wait_for_plugin "$PLUGIN_ID"
+disable_replacements omarchy.lock "$PLUGIN_ID"
 omarchy plugin enable "$PLUGIN_ID"
 
 # `omarchy plugin add` installs one plugin per repo (the root), so the polkit
@@ -183,13 +203,8 @@ POLKIT_DIR="$HOME/.config/omarchy/plugins/$POLKIT_ID"
 rm -rf "$POLKIT_DIR"
 cp -r "$HERE/polkit" "$POLKIT_DIR"
 omarchy-shell shell rescanPlugins >/dev/null
-sleep 1
-omarchy plugin list --json |
-  jq -r --arg me "$POLKIT_ID" '.[] | select(.enabled and .id != $me and (.id == "omarchy.polkit" or .clonedFrom == "omarchy.polkit")) | .id' |
-  while read -r other; do
-    echo "Disabling $other"
-    omarchy plugin disable "$other"
-  done
+wait_for_plugin "$POLKIT_ID"
+disable_replacements omarchy.polkit "$POLKIT_ID"
 omarchy plugin enable "$POLKIT_ID"
 omarchy restart shell
 
