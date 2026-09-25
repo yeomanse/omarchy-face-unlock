@@ -1,0 +1,31 @@
+#!/bin/bash
+# Run every test/*-test.sh. Keeps going after a failing file so one failure
+# can't hide the rest, then prints a summary (skips included).
+
+set -uo pipefail
+
+ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+output=$(mktemp)
+trap 'rm -f "$output"' EXIT
+
+failed=()
+skipped=()
+for test in "$ROOT"/test/*-test.sh; do
+  name=${test#"$ROOT"/}
+  printf '==> %s\n' "$name"
+  bash "$test" 2>&1 | tee "$output"
+  (( PIPESTATUS[0] == 0 )) || failed+=("$name")
+  grep -q '^ok - .* # SKIP$' "$output" && skipped+=("$name")
+done
+
+echo
+if (( ${#skipped[@]} > 0 )); then
+  echo "Skipped checks in:"
+  printf '  %s\n' "${skipped[@]}"
+fi
+if (( ${#failed[@]} > 0 )); then
+  echo "FAILED:"
+  printf '  %s\n' "${failed[@]}"
+  exit 1
+fi
+echo "All test files passed."

@@ -1,0 +1,50 @@
+name: Camera report
+description: Tell us how face unlock works (or doesn't) on your hardware
+labels: [hardware]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Reports from real hardware are the only way to test IR cameras. Working
+        setups are just as useful as broken ones.
+  - type: dropdown
+    id: result
+    attributes:
+      label: Does it work?
+      options:
+        - "Yes: sudo, polkit and the lock screen all work"
+        - Partly (describe below)
+        - "No"
+    validations:
+      required: true
+  - type: input
+    id: laptop
+    attributes:
+      label: Laptop / camera model
+      placeholder: "Lenovo ThinkPad X1 Carbon Gen 11, Integrated IR Camera"
+    validations:
+      required: true
+  - type: textarea
+    id: devices
+    attributes:
+      label: Camera devices
+      description: Output of `v4l2-ctl --list-devices` and `for d in /dev/video*; do echo $d; v4l2-ctl -d $d --list-formats | grep "\["; done`
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: howdy
+    attributes:
+      label: Howdy settings
+      description: Output of `grep -E "^(device_path|dark_threshold|certainty)" /etc/howdy/config.ini`
+      render: text
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Output of `omarchy version; pacman -Q howdy-git python-opencv`
+  - type: textarea
+    id: details
+    attributes:
+      label: What happened?
+      description: Which prompt, what you expected, what you saw. Installer output helps if it failed.

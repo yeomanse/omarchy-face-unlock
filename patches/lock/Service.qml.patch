@@ -1,0 +1,123 @@
+--- a/Service.qml
++++ b/Service.qml
+@@ -22,6 +22,10 @@
+   property bool fingerprintAuthenticating: false
+   property bool passwordPamConfigured: false
+   property bool fingerprintConfigured: false
++  // Face unlock (Howdy) runs in its own PAM flow beside the password box, so
++  // typing is never blocked by a scan. faceStatus: "", "scanning" or "failed".
++  property bool facePamConfigured: false
++  property string faceStatus: ""
+   property bool previewVisible: false
+   property string enteredPassword: ""
+   property string pendingPassword: ""
+@@ -121,8 +125,10 @@
+     authenticatingPassword = false
+     fingerprintAuthenticating = false
+     fingerprintRetryTimer.stop()
++    faceStatus = ""
+     if (passwordPam.active) passwordPam.abort()
+     if (fingerprintPam.active) fingerprintPam.abort()
++    if (facePam.active) facePam.abort()
+   }
+ 
+   function beginLock() {
+@@ -175,7 +181,12 @@
+ 
+   function submitPassword(value) {
+     var password = String(value || "")
+-    if (!lockRequested || authenticatingPassword || password.length === 0) return
++    if (!lockRequested || authenticatingPassword) return
++    if (password.length === 0) {
++      runWake()
++      startFace(true)
++      return
++    }
+ 
+     runWake()
+     pendingPassword = password
+@@ -206,6 +217,31 @@
+     runWake()
+   }
+ 
++  // Typing starts one scan; after a failure it only retries on an explicit
++  // empty Enter (force) or once the field has been cleared (see enteredPassword).
++  function startFace(force) {
++    if (!lockRequested || !sessionLock.secure || !facePamConfigured) return
++    if (facePam.active || faceStatus === "scanning") return
++    if (faceStatus === "failed" && !force) return
++
++    faceStatus = "scanning"
++    if (!facePam.start()) faceStatus = "failed"
++  }
++
++  function handleFaceFinished(result) {
++    if (!lockRequested) return
++    if (result === PamResult.Success) {
++      faceStatus = ""
++      finishUnlock()
++    } else {
++      faceStatus = "failed"
++    }
++  }
++
++  onEnteredPasswordChanged: {
++    if (enteredPassword.length === 0 && faceStatus === "failed") faceStatus = ""
++  }
++
+   function startFingerprint() {
+     if (!lockRequested || !sessionLock.secure || !fingerprintConfigured) return
+     if (fingerprintPam.active || fingerprintAuthenticating) return
+@@ -271,6 +307,7 @@
+         backgroundPath: root.backgroundPath
+         backgroundVersion: root.backgroundVersion
+         fingerprintConfigured: root.fingerprintConfigured
++        faceStatus: root.faceStatus
+         authenticatingPassword: root.authenticatingPassword
+         failureMessage: root.failureMessage
+         failedAttempts: root.failedAttempts
+@@ -279,6 +316,7 @@
+         passwordText: root.enteredPassword
+         onPasswordTextEdited: function(password) { root.enteredPassword = password }
+         onSubmitPassword: function(password) { root.submitPassword(password) }
++        onFaceRequested: root.startFace(false)
+         onClearFailureRequested: root.failureMessage = ""
+         onWakeRequested: root.runWake()
+       }
+@@ -353,6 +391,20 @@
+     }
+   }
+ 
++  PamContext {
++    id: facePam
++    config: "omarchy-lock-face"
++    user: root.userName
++
++    onCompleted: function(result) {
++      root.handleFaceFinished(result)
++    }
++
++    onError: function(error) {
++      if (root.lockRequested) root.faceStatus = "failed"
++    }
++  }
++
+   Timer {
+     id: fingerprintRetryTimer
+     interval: 250
+@@ -490,6 +542,15 @@
+     onFileChanged: reload()
+   }
+ 
++  FileView {
++    path: "/etc/pam.d/omarchy-lock-face"
++    watchChanges: true
++    printErrors: false
++    onLoaded: root.facePamConfigured = true
++    onLoadFailed: root.facePamConfigured = false
++    onFileChanged: reload()
++  }
++
+   // No lock before PAM is known good. An answer from before then may be stale --
+   // the failsafe can be cleared from a TTY -- so re-ask rather than act on it.
+   onPasswordPamConfiguredChanged: {

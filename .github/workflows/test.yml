@@ -1,0 +1,28 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # Arch, like Omarchy: same PAM modules, Qt and tool versions users run.
+    container: archlinux:latest
+    steps:
+      - name: Install test tools
+        run: |
+          pacman -Syu --noconfirm --needed \
+            git jq nodejs python patch diffutils shellcheck pam_wrapper qt6-declarative
+
+      - uses: actions/checkout@v4
+
+      # pam_faillock never locks out root (no even_deny_root), so the lockout
+      # tests must run as a normal user or they'd pass for the wrong reason.
+      - name: Create test user
+        run: |
+          useradd -m tester
+          chown -R tester: "$GITHUB_WORKSPACE"
+
+      - name: Run tests
+        run: su tester -c "cd '$GITHUB_WORKSPACE' && test/run"

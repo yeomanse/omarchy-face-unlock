@@ -33,6 +33,7 @@ The installer:
    `yeomanse.face-polkit` (from `polkit/`).
 
 Every PAM file it changes is backed up to `<file>.bak-face-unlock` first.
+Re-running the installer is safe: it changes nothing that's already in place.
 
 ## Uninstall
 
@@ -41,6 +42,9 @@ Every PAM file it changes is backed up to `<file>.bak-face-unlock` first.
 omarchy plugin remove yeomanse.face-lock
 yay -Rns howdy-git python-dlib   # optional
 ```
+
+Uninstall removes only what face unlock added. If you set up or removed
+fingerprint since installing, that choice is kept.
 
 If the lock screen ever refuses you, switch to a TTY (`Ctrl + Alt + F3`), log
 in, and run `omarchy plugin disable yeomanse.face-lock && omarchy plugin enable omarchy.lock`.
@@ -90,6 +94,18 @@ attempts a recognised face won't get you in either.
   doesn't mean it's off.
 - **Omarchy updates**: the lock screen and polkit dialog are clones of the stock
   plugins, so they won't pick up upstream changes until this repo is updated.
+  The changes are kept as small patches (`patches/`) against the recorded
+  Omarchy files (`upstream/`), so updating is `tools/upstream.sh rebase`.
+
+## Testing and development
+
+`test/run` runs the automated suite: the PAM stacks are exercised for real
+under pam_wrapper (consent, fallbacks, lockout), plus the install/uninstall
+file edits, the polkit hint logic, and static checks. CI runs it in an Arch
+container. [TESTING.md](TESTING.md) has the details, the manual hardware
+checklist, and what to do after an Omarchy update (`tools/upstream.sh rebase`).
+
+Hardware reports, working or not, are very welcome: open a *Camera report* issue.
 
 ## Security
 

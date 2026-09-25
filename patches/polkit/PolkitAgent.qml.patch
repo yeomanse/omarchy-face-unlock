@@ -1,0 +1,89 @@
+--- a/polkit/PolkitAgent.qml
++++ b/polkit/PolkitAgent.qml
+@@ -34,6 +34,9 @@
+   property bool errorFlash: false
+   // pam_fprintd appears in the polkit PAM stack (a sensor is enrolled).
+   property bool fingerprintConfigured: false
++  // pam_howdy appears in the polkit PAM stack: an empty Enter scans your face.
++  property bool faceConfigured: false
++  property bool faceScanning: false
+   // Lid shut right now — the reader is physically unreachable, so we fall back
+   // to the password even when a sensor is enrolled. Refreshed per request.
+   property bool laptopClosed: false
+@@ -56,6 +59,7 @@
+ 
+   function loadPamConfig(raw) {
+     fingerprintConfigured = PolkitModel.fingerprintConfiguredFromPamConfig(raw)
++    faceConfigured = PolkitModel.faceConfiguredFromPamConfig(raw)
+   }
+ 
+   function refreshLidState() {
+@@ -71,6 +75,7 @@
+     failed = false
+     errorFlash = false
+     submitted = false
++    faceScanning = false
+     passwordInput.text = ""
+   }
+ 
+@@ -111,6 +116,7 @@
+     if (!flow || !flow.isResponseRequired) return
+     submitted = true
+     errorFlash = false
++    faceScanning = faceConfigured && passwordInput.text.length === 0
+     flow.submit(passwordInput.text)
+     passwordInput.text = ""
+     keyCatcher.forceActiveFocus()
+@@ -162,7 +168,7 @@
+     watchChanges: true
+     printErrors: false
+     onLoaded: root.loadPamConfig(text())
+-    onLoadFailed: root.fingerprintConfigured = false
++    onLoadFailed: { root.fingerprintConfigured = false; root.faceConfigured = false }
+     onFileChanged: reload()
+   }
+ 
+@@ -336,7 +342,7 @@
+             anchors.left: parent.left
+             anchors.right: parent.right
+             anchors.verticalCenter: parent.verticalCenter
+-            text: root.errorFlash ? "Wrong" : (root.submitted ? "Checking..." : "Enter password")
++            text: root.errorFlash ? "Wrong" : (root.submitted ? (root.faceScanning ? "Scanning face..." : "Checking...") : "Enter password")
+             color: root.errorFlash ? Color.polkit.textError : root.foreground
+             opacity: root.errorFlash ? 1 : 0.36
+             font.family: root.fontFamily
+@@ -388,5 +394,34 @@
+         elide: Text.ElideMiddle
+       }
+     }
++
++    // Face unlock hint, mirroring the justification pill above the card. The
++    // camera only runs after Enter (polkit-1 asks for the password first).
++    Rectangle {
++      width: Math.min(faceHintText.implicitWidth + Style.space(24), panel.width - Style.gapsOut * 2)
++      height: Style.space(28)
++      anchors.horizontalCenter: card.horizontalCenter
++      anchors.top: card.bottom
++      anchors.topMargin: Style.space(10)
++      radius: root.cornerRadius
++      color: root.background
++      visible: root.faceConfigured && !root.fingerprintMode
++
++      Text {
++        id: faceHintText
++        textFormat: Text.PlainText
++        anchors.fill: parent
++        anchors.leftMargin: Style.space(12)
++        anchors.rightMargin: Style.space(12)
++        text: "Press Enter on an empty box to scan your face"
++        color: root.foreground
++        opacity: 0.7
++        font.family: root.fontFamily
++        font.pixelSize: Style.font.bodySmall
++        horizontalAlignment: Text.AlignHCenter
++        verticalAlignment: Text.AlignVCenter
++        elide: Text.ElideRight
++      }
++    }
+   }
+ }

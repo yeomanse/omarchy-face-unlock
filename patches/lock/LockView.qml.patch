@@ -1,0 +1,48 @@
+--- a/LockView.qml
++++ b/LockView.qml
+@@ -9,6 +9,7 @@
+   property string backgroundPath: ""
+   property int backgroundVersion: 0
+   property bool fingerprintConfigured: false
++  property string faceStatus: ""
+   property bool authenticatingPassword: false
+   property string failureMessage: ""
+   property int failedAttempts: 0
+@@ -42,6 +43,7 @@
+   signal passwordTextEdited(string password)
+   signal clearFailureRequested()
+   signal wakeRequested()
++  signal faceRequested()
+ 
+   // Cache-busts the lock background by appending `?v=`. Adding a query
+   // string keeps Image's loader happy while forcing it to reload when the
+@@ -164,6 +166,7 @@
+           if (!root.syncingPasswordText) root.passwordTextEdited(text)
+           if (text.length > 0) {
+             root.wakeRequested()
++            if (!root.syncingPasswordText) root.faceRequested()
+           }
+           if (text.length > 0 && root.failureMessage.length > 0) root.clearFailureRequested()
+         }
+@@ -215,5 +218,21 @@
+         verticalAlignment: Text.AlignVCenter
+       }
+     }
++
++    // Face unlock status, kept outside the field so the password box stays
++    // free to type in while a scan runs.
++    Text {
++      objectName: "faceIndicator"
++      textFormat: Text.PlainText
++      anchors.top: inputField.bottom
++      anchors.topMargin: 14
++      anchors.horizontalCenter: inputField.horizontalCenter
++      visible: root.faceStatus.length > 0
++      text: root.faceStatus === "scanning" ? "Scanning face…" : "Face not recognized"
++      color: root.faceStatus === "failed" ? Color.lock.textError : Color.lock.text
++      font.family: Style.font.family
++      font.pixelSize: Math.round(root.fieldFontSize * 0.8)
++      font.italic: root.faceStatus === "failed"
++    }
+   }
+ }
