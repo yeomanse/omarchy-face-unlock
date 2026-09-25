@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "yeomanse.face-polkit",
+  "name": "Face Unlock Polkit Agent",
+  "version": "0.1.0",
+  "author": "yeomanse",
+  "description": "Omarchy polkit dialog with a hint to press Enter on an empty box to scan your face (Howdy).",
+  "omarchy": {
+    "capabilities": [
+      "authentication"
+    ],
+    "clonedFrom": "omarchy.polkit"
+  },
+  "kinds": [
+    "service"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "PolkitAgent.qml"
+  }
+}

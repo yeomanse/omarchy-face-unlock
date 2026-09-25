@@ -10,7 +10,8 @@
 
 set -euo pipefail
 
-REPO_URL="https://github.com/yeomanse/omarchy-face-unlock.git"
+# Override to install the plugin from a fork or a local checkout (file:///path)
+REPO_URL="${FACE_UNLOCK_REPO:-https://github.com/yeomanse/omarchy-face-unlock.git}"
 PLUGIN_ID="yeomanse.face-lock"
 PLUGIN_DIR="$HOME/.config/omarchy/plugins/$PLUGIN_ID"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -154,6 +155,23 @@ omarchy plugin list --json |
     omarchy plugin disable "$other"
   done
 omarchy plugin enable "$PLUGIN_ID"
+
+# `omarchy plugin add` installs one plugin per repo (the root), so the polkit
+# dialog plugin ships in polkit/ and is copied into place alongside it.
+step "Installing the polkit dialog plugin"
+POLKIT_ID="yeomanse.face-polkit"
+POLKIT_DIR="$HOME/.config/omarchy/plugins/$POLKIT_ID"
+rm -rf "$POLKIT_DIR"
+cp -r "$HERE/polkit" "$POLKIT_DIR"
+omarchy-shell shell rescanPlugins >/dev/null
+sleep 1
+omarchy plugin list --json |
+  jq -r --arg me "$POLKIT_ID" '.[] | select(.enabled and .id != $me and (.id == "omarchy.polkit" or .clonedFrom == "omarchy.polkit")) | .id' |
+  while read -r other; do
+    echo "Disabling $other"
+    omarchy plugin disable "$other"
+  done
+omarchy plugin enable "$POLKIT_ID"
 omarchy restart shell
 
 step "Done"

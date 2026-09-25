@@ -11,9 +11,12 @@ step() { echo -e "\n\e[32m==> $*\e[0m"; }
 
 [[ $EUID -ne 0 ]] || { echo "Run as your normal user, not root." >&2; exit 1; }
 
-step "Switching back to the stock lock screen"
+step "Switching back to the stock lock screen and polkit dialog"
 omarchy plugin disable "$PLUGIN_ID" 2>/dev/null || true
 omarchy plugin enable omarchy.lock
+omarchy plugin disable yeomanse.face-polkit 2>/dev/null || true
+omarchy plugin enable omarchy.polkit
+rm -rf "$HOME/.config/omarchy/plugins/yeomanse.face-polkit"
 omarchy restart shell
 
 step "Restoring PAM files"

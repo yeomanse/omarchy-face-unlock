@@ -6,7 +6,7 @@ Windows Hello style face unlock for [Omarchy](https://omarchy.org), using
 | Where | How it behaves |
 |---|---|
 | **Lock screen** | Press any key and a face scan starts *beside* the password box. Keep typing if you expect it to fail (dark room, glasses); a recognised face unlocks mid-typing. Empty Enter retries the scan. |
-| **Polkit pop-ups** | The password box comes first, so the camera never fires just because you're reading the prompt. Press Enter on an empty box to scan your face. |
+| **Polkit pop-ups** | The password box comes first, so the camera never fires just because you're reading the prompt. A hint under the box says to press Enter on an empty box to scan your face. |
 | **sudo** | Scans immediately (you just typed `sudo`), falls back to your password. |
 
 Your password always works everywhere.
@@ -29,7 +29,8 @@ The installer:
 5. Enrolls your face (`sudo howdy add`).
 6. Adds Howdy to sudo and **tests it**, restoring the file if sudo breaks.
 7. Installs the polkit and lock screen PAM files.
-8. Swaps the stock lock screen for this plugin.
+8. Swaps the stock lock screen for this plugin, and the stock polkit dialog for
+   `yeomanse.face-polkit` (from `polkit/`).
 
 Every PAM file it changes is backed up to `<file>.bak-face-unlock` first.
 
@@ -58,6 +59,11 @@ runs `polkit-1` as soon as the pop-up appears. So `pam/polkit-1` asks for the
 password first, and only if that fails (an empty Enter) runs Howdy. Note that a
 wrong password followed by a recognised face also passes.
 
+The dialog is a clone of `omarchy.polkit` (in `polkit/`) that notices
+`pam_howdy` in the polkit stack, shows the "press Enter" hint, and says
+"Scanning face..." while Howdy runs. `omarchy plugin add` installs one plugin
+per repo, so `install.sh` copies this one into place; re-run it to update.
+
 **Lockout.** Both face stacks sit behind `pam_faillock`, so after 10 failed
 attempts a recognised face won't get you in either.
 
@@ -76,8 +82,8 @@ attempts a recognised face won't get you in either.
   (use `linux-enable-ir-emitter-git`; the stable AUR package doesn't build
   against OpenCV 5). Check first: many emitters strobe, so a single dark frame
   doesn't mean it's off.
-- **Omarchy updates**: this is a clone of the stock lock screen, so it won't pick
-  up upstream lock screen changes until this repo is updated.
+- **Omarchy updates**: the lock screen and polkit dialog are clones of the stock
+  plugins, so they won't pick up upstream changes until this repo is updated.
 
 ## Security
 
@@ -88,4 +94,4 @@ fingerprint. Howdy's own docs say the same. Don't use it where that matters.
 ## License
 
 MIT. `Service.qml` and `LockView.qml` are derived from Omarchy's `omarchy.lock`
-plugin (MIT).
+plugin, and `polkit/` from `omarchy.polkit` (both MIT).

@@ -1,6 +1,6 @@
 Copyright (c) 2026 Erik Yeomans
-Portions (Service.qml, LockView.qml) Copyright (c) David Heinemeier Hansson,
-derived from Omarchy's omarchy.lock plugin.
+Portions (Service.qml, LockView.qml, polkit/) Copyright (c) David Heinemeier Hansson,
+derived from Omarchy's omarchy.lock and omarchy.polkit plugins.
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
