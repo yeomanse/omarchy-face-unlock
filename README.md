@@ -80,6 +80,11 @@ Notes:
 
 - Logging in with your **password** also unlocks your keyring (it never did
   with autologin). A face login leaves it locked, as autologin did.
+- Apps that saved secrets under autologin may seem to "lose" them after the
+  switch. Autologin never creates the keyring's `login` collection, so they
+  were stored in another one; once you log in at the login screen a `login`
+  collection appears, and some apps (e.g. `gh`) only look there. Log in to
+  those apps once more (for `gh`: `gh auth login`).
 - SDDM reads **every** file in `/etc/sddm.conf.d/`, whatever its extension, so
   renaming `autologin.conf` to `autologin.conf.disabled` does not turn it off.
   The installer moves it out to `/etc/sddm-autologin.conf.bak-face-unlock`;
