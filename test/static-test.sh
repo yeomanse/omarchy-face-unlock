@@ -72,6 +72,7 @@ fi
 
 if command -v python3 >/dev/null; then
   check "pam_auth.py compiles" python3 -m py_compile "$ROOT/test/pam_auth.py"
+  check "dark_threshold.py compiles" python3 -m py_compile "$ROOT/lib/dark_threshold.py"
 fi
 
 finish

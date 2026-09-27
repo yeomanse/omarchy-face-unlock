@@ -120,28 +120,11 @@ CONFIG=/etc/howdy/config.ini
 step "Configuring Howdy for $IR_DEVICE"
 sudo sed -i "s|^device_path = .*|device_path = $IR_DEVICE|" "$CONFIG"
 
-# Howdy drops frames whose darkest histogram bucket exceeds dark_threshold %.
-# IR cameras light only what is close, so even good frames are mostly black,
-# and many strobe the emitter on alternate frames. Measure the lit frames and
-# sit the threshold just above them, below the unlit ones.
-THRESHOLD=$(python3 - "$IR_DEVICE" <<'PY'
-import sys, cv2, numpy as np
-cap = cv2.VideoCapture(sys.argv[1], cv2.CAP_V4L2)
-vals = []
-for i in range(40):
-    ok, f = cap.read()
-    if not ok or i < 5:
-        continue
-    g = cv2.cvtColor(f, cv2.COLOR_BGR2GRAY) if f.ndim == 3 else f
-    h = np.asarray(cv2.calcHist([g], [0], None, [8], [0, 256])).flatten()
-    vals.append(float(h[0] / h.sum() * 100))
-if not vals:
-    print(60); sys.exit()
-lit = [v for v in vals if v <= min(vals) + 15]
-print(int(min(95, max(60, max(lit) + 10))))
-PY
-)
-echo "Measured lit-frame darkness; setting dark_threshold = $THRESHOLD"
+# Howdy skips frames darker than dark_threshold %. IR frames are mostly black
+# even when lit, and get darker as the room does, so the threshold must not be
+# tuned to today's lighting; lib/dark_threshold.py explains the choice.
+THRESHOLD=$(python3 "$HERE/lib/dark_threshold.py" "$IR_DEVICE")
+echo "Measured the camera; setting dark_threshold = $THRESHOLD"
 sudo sed -i "s|^dark_threshold = .*|dark_threshold = $THRESHOLD|" "$CONFIG"
 
 # ---------------------------------------------------------------------------
