@@ -144,4 +144,17 @@ moved="/etc/sddm-$(basename "$TMP/sddm.conf.d/autologin.conf")$BAK"
 name=$(basename "$moved" "$BAK")
 assert_eq "autologin.conf" "${name#sddm-}" "sddm: uninstall restores the autologin file under its original name"
 
+# --- backups on install / upgrade -------------------------------------------------
+
+cp "$STOCK_POLKIT" "$TMP/orig"
+needs() { if pam_needs_backup "$@"; then echo yes; else echo no; fi; }
+assert_eq yes "$(needs "$TMP/orig" "$TMP/orig.bak" "$TEMPLATE")" "backup: the system's original file is backed up"
+assert_eq no "$(needs "$TMP/missing" "$TMP/missing.bak" "$TEMPLATE")" "backup: nothing to back up when the file doesn't exist"
+touch "$TMP/orig.bak"
+assert_eq no "$(needs "$TMP/orig" "$TMP/orig.bak" "$TEMPLATE")" "backup: an existing backup is never overwritten"
+assert_eq no "$(needs "$TEMPLATE" "$TMP/t.bak" "$TEMPLATE")" "backup: a re-run doesn't back up our current file"
+sed 's/authsucc deny=10 unlock_time=120/authsucc/' "$TEMPLATE" >"$TMP/older-ours"
+assert_eq no "$(needs "$TMP/older-ours" "$TMP/older.bak" "$TEMPLATE")" \
+  "backup: an upgrade doesn't save our older version as the 'original'"
+
 finish

@@ -73,3 +73,16 @@ sddm_autologin_files() {
   done
   return 0
 }
+
+# Whether install should back up <file> (to <backup>) before replacing it with
+# <rendered>. Only the system's original is worth keeping: not when there's
+# nothing to back up or a backup already exists, and never a file that is
+# already ours (it matches <rendered>, or carries pam_howdy from an earlier
+# version), or an upgrade would save our old stack as the "original".
+pam_needs_backup() {
+  local file=$1 backup=$2 rendered=${3:-}
+  [[ -e $file && ! -e $backup ]] || return 1
+  [[ -n $rendered ]] && cmp -s "$file" "$rendered" && return 1
+  grep -q 'pam_howdy\.so' "$file" && return 1
+  return 0
+}

@@ -29,11 +29,9 @@ command -v omarchy >/dev/null || die "This installer is for Omarchy."
 command -v yay >/dev/null || die "yay is required to install AUR packages."
 [[ -t 0 ]] || die "Run this from a terminal; several steps are interactive."
 
-# Back up the original once. Skips a file that already matches what we install
-# ($2), so a re-run never saves our own version as the "original".
+# Back up the original once (see pam_needs_backup: never our own version).
 backup() {
-  [[ -e $1 && ! -e $1$BAK ]] || return 0
-  [[ -n ${2:-} ]] && cmp -s "$1" "$2" && return 0
+  pam_needs_backup "$1" "$1$BAK" "${2:-}" || return 0
   sudo cp -a "$1" "$1$BAK"
 }
 
