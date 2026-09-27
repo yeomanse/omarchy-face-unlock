@@ -27,17 +27,26 @@ day = [100.0, 100.0, 35.6, 100.0, 34.6, 100.0, 34.6, 100.0, 35.1, 100.0]
 lit_night, unlit_night = max(v for v in night if v < 90), min(v for v in night if v > 90)
 lit_day = max(v for v in day if v < 90)
 
-for name, values in (("installed at night", night), ("installed in daylight", day)):
-    t = choose_threshold(values)
+# Auto-exposure ramping after the camera opens (first lit frames 96, 89, 44).
+ramp = [100, 100, 100, 96, 100, 89, 100, 44, 100, 35, 100, 35, 100, 32]
+
+for name, values in (("installed at night", night), ("installed in daylight", day),
+                     ("measured during exposure ramp-up", ramp)):
+    t, warning = choose_threshold(values)
     check(t > lit_night, f"{name}: threshold {t} accepts lit frames at night ({lit_night})")
     check(t > lit_day, f"{name}: threshold {t} accepts lit frames in daylight ({lit_day})")
     check(t < unlit_night, f"{name}: threshold {t} still rejects unlit frames ({unlit_night})")
+    check(warning is None, f"{name}: no warning")
 
 steady = [40.0, 41.5, 39.8, 42.0]  # non-strobing camera, all frames lit
-t = choose_threshold(steady)
-check(t >= 42.0 + 15, f"non-strobing: threshold {t} leaves headroom for darker rooms")
-check(choose_threshold([]) == 60, "no frames read: Howdy's default (60)")
-check(60 <= choose_threshold([99.0] * 5) <= 95, "all-dark readings stay within Howdy's sane range")
+t, warning = choose_threshold(steady)
+check(t == 95 and warning is None, f"non-strobing camera: {t}, no warning")
+
+t, warning = choose_threshold([99.0, 100.0, 98.5, 100.0])  # emitter never lights
+check(warning is not None and "emitter" in warning, "no lit frames: warns that the emitter may be off")
+
+t, warning = choose_threshold([])
+check(t == 60 and warning is not None, "camera unreadable: Howdy's default (60) with a warning")
 
 sys.exit(1 if failures else 0)
 PY

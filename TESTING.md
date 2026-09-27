@@ -27,7 +27,7 @@ through this on a real machine:
 
 1. **Fresh install**: with Howdy not yet installed, run the two install commands
    from the README. Expect: IR camera found, dlib builds without CUDA (unless
-   NVIDIA), `dark_threshold` measured (typically 94–95 for strobing IR cameras), enrolment, sudo test passes.
+   NVIDIA), `dark_threshold` measured (95; a warning if the emitter never lights), enrolment, sudo test passes.
 2. **sudo**: new terminal, `sudo -k; sudo true`. Look → no password. Cover the
    camera → password prompt after ~4s.
 3. **polkit**: `pkexec true`. The dialog waits at the password box with the

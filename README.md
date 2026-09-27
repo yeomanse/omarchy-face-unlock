@@ -128,8 +128,9 @@ attempts a recognised face won't get you in either.
   in daylight but ~75% at night, and many strobe the emitter on alternate frames
   (~98% black in any light). A threshold that's too high costs almost nothing
   (Howdy looks at a dark frame and finds no face), one that's too low breaks face
-  unlock, so the installer sets it just below the unlit frames (typically 94–95)
-  rather than just above today's lit ones. See `lib/dark_threshold.py`.
+  unlock, so the installer sets it high (95), just below the unlit frames,
+  rather than just above today's lit ones, and warns if it sees no lit frames
+  at all (the emitter isn't switching on). See `lib/dark_threshold.py`.
 - **`sudo howdy test` crashes** with `IndexError: invalid index to scalar variable`
   on OpenCV 5 (Arch ships it). Only the test window is affected; enrolment and
   login work. It also needs your Wayland session passed through sudo:

@@ -1,25 +1,27 @@
 #!/usr/bin/env python3
-"""Pick Howdy's dark_threshold for an IR camera.
+"""Pick Howdy's dark_threshold for an IR camera, and check the emitter works.
 
 Howdy skips any frame whose darkest histogram bucket (8 buckets) exceeds
-dark_threshold percent. The costs are lopsided: too high only means Howdy
-sometimes looks at a dark frame and finds no face; too low rejects every frame
-and face unlock stops working. And lit IR frames get darker as the room does
-(~35% in daylight, ~74% at night on an Acer IR camera), so the threshold must
-not be tuned to how bright the room happens to be at install time.
+dark_threshold percent. The costs are lopsided: too high only means Howdy now
+and then looks at a near-black frame and finds no face; too low rejects every
+frame and face unlock silently falls back to the password. And lit IR frames
+get darker as the room does (~30% black in daylight, ~75% at night on an Acer
+IR camera), so a threshold tuned to the lighting at install time breaks later.
 
-- Strobing cameras (the emitter lights every other frame) give two clusters.
-  The unlit cluster sits at ~98-100% in any light, so go just below it.
-- Otherwise, leave generous headroom above the brightest measurement.
+So the threshold is simply high (95): above any lit frame (< 90% by
+definition here), below the unlit ones (~98-100%). What the measurement is
+really for is catching a camera whose emitter never lights: then there are no
+lit frames at all, and the user should hear about it.
 
-usage: dark_threshold.py <device>   prints the threshold (60 if unreadable)
+usage: dark_threshold.py <device>
+  prints the threshold; warns on stderr if no lit frames were seen
 """
 import sys
 
-FLOOR = 60  # Howdy's default
-CEILING = 95
-STROBE_GAP = 20  # lit and unlit clusters at least this far apart
-HEADROOM = 20  # non-strobing: room for the lighting to get darker
+DEFAULT = 60  # Howdy's own default, used when the camera can't be read
+THRESHOLD = 95
+LIT_BELOW = 90  # frames darker than this are unlit (emitter off)
+WARMUP = 15  # auto-exposure takes a few frames to settle
 
 
 def darkness(frame):
@@ -32,18 +34,19 @@ def darkness(frame):
 
 
 def choose_threshold(values):
+    """Returns (threshold, warning or None)."""
     if not values:
-        return FLOOR
-    ordered = sorted(values)
-    # Largest jump between neighbouring values splits lit from unlit frames.
-    gap, split = max((b - a, i) for i, (a, b) in enumerate(zip(ordered, ordered[1:]))) if len(ordered) > 1 else (0, 0)
-    if gap >= STROBE_GAP:
-        unlit_min = ordered[split + 1]
-        return int(max(FLOOR, min(CEILING, unlit_min - 3)))
-    return int(max(FLOOR, min(CEILING, ordered[-1] + HEADROOM)))
+        return DEFAULT, "could not read frames from the camera; using Howdy's default (60)"
+    lit = [v for v in values if v < LIT_BELOW]
+    if not lit:
+        return THRESHOLD, (
+            "no lit frames seen: the IR emitter may not be switching on. "
+            "Check with linux-enable-ir-emitter (see README) if face unlock fails."
+        )
+    return THRESHOLD, None
 
 
-def measure(device, frames=40, warmup=5):
+def measure(device, frames=50, warmup=WARMUP):
     import cv2
 
     cap = cv2.VideoCapture(device, cv2.CAP_V4L2)
@@ -57,4 +60,7 @@ def measure(device, frames=40, warmup=5):
 
 
 if __name__ == "__main__":
-    print(choose_threshold(measure(sys.argv[1])))
+    threshold, warning = choose_threshold(measure(sys.argv[1]))
+    if warning:
+        print(f"warning: {warning}", file=sys.stderr)
+    print(threshold)
