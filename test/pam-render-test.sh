@@ -125,4 +125,23 @@ assert_contains "$(cat "$TMP/out")" "auth      required pam_unix.so" "polkit uni
 # The caller removes the override when there is no backup and no fingerprint.
 assert_eq "" "$(pam_fingerprint_lines "$TEMPLATE")" "polkit: the template itself carries no fingerprint lines"
 
+# --- SDDM autologin detection ----------------------------------------------------
+
+mkdir -p "$TMP/sddm.conf.d"
+printf '[Autologin]\nUser=alice\nSession=omarchy.desktop\n' >"$TMP/sddm.conf.d/autologin.conf"
+printf '[Autologin]\nUser=alice\n' >"$TMP/sddm.conf.d/autologin.conf.disabled"  # still read by SDDM
+printf '[Autologin]\nRelogin=false\nUser=\n' >"$TMP/sddm.conf.d/defaults.conf"
+printf '[Users]\nUser=alice\n[Autologin]\nRelogin=false\n' >"$TMP/sddm.conf.d/other-section.conf"
+printf '[Theme]\nCurrent=omarchy\n' >"$TMP/sddm.conf.d/10-theme.conf"
+found=$(sddm_autologin_files "$TMP/sddm.conf.d" | xargs -n1 basename | sort | tr '\n' ' ')
+assert_eq "autologin.conf autologin.conf.disabled " "$found" \
+  "sddm: finds autologin configs by content, whatever the extension; ignores empty User= and other sections"
+assert_eq "" "$(sddm_autologin_files "$TMP/empty-dir-that-does-not-exist")" "sddm: a missing config dir finds nothing"
+
+# install.sh moves <dir>/<name> to /etc/sddm-<name><BAK>; uninstall.sh reverses it.
+BAK=".bak-face-unlock"
+moved="/etc/sddm-$(basename "$TMP/sddm.conf.d/autologin.conf")$BAK"
+name=$(basename "$moved" "$BAK")
+assert_eq "autologin.conf" "${name#sddm-}" "sddm: uninstall restores the autologin file under its original name"
+
 finish

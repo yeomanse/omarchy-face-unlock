@@ -53,6 +53,22 @@ if [[ -f /etc/pam.d/sudo ]] && grep -q 'pam_howdy\.so' /etc/pam.d/sudo; then
 fi
 sudo rm -f "/etc/pam.d/sudo$BAK"
 
+# Login screen (optional install step): restore SDDM's PAM file and put the
+# autologin configs moved out of sddm.conf.d back.
+if grep -q 'pam_howdy\.so' /etc/pam.d/sddm 2>/dev/null; then
+  if [[ -e /etc/pam.d/sddm$BAK ]]; then
+    sudo mv "/etc/pam.d/sddm$BAK" /etc/pam.d/sddm
+  else
+    echo "No backup of /etc/pam.d/sddm found; reinstall the sddm package to restore it." >&2
+  fi
+fi
+for moved in /etc/sddm-*"$BAK"; do
+  [[ -e $moved ]] || continue
+  name=$(basename "$moved" "$BAK")
+  echo "Turning autologin back on: /etc/sddm.conf.d/${name#sddm-}"
+  sudo mv "$moved" "/etc/sddm.conf.d/${name#sddm-}"
+done
+
 step "Done"
 echo "Remove the plugin files with: omarchy plugin remove $PLUGIN_ID"
 echo "Remove Howdy with:           yay -Rns howdy-git python-dlib"

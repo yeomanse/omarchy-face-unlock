@@ -208,6 +208,36 @@ disable_replacements omarchy.polkit "$POLKIT_ID"
 omarchy plugin enable "$POLKIT_ID"
 omarchy restart shell
 
+# ---------------------------------------------------------------------------
+step "Login screen (optional)"
+# Face login at SDDM only means something without autologin, and turning
+# autologin off is a per-machine choice, so ask. See README "Login screen".
+if cmp -s /etc/pam.d/sddm "$HERE/pam/sddm" && [[ -z $(sddm_autologin_files /etc/sddm.conf.d) ]]; then
+  echo "Already set up: face login at the login screen, autologin off."
+else
+  cat <<'EOF'
+Omarchy logs you in automatically after the disk unlock. Face unlock can
+instead give you a login screen: press Enter on the empty box to scan your
+face, or type your password. This turns autologin off.
+EOF
+  read -rp "Use face login at the login screen? [y/N] " login_screen
+  if [[ $login_screen == [yY]* ]]; then
+    install_pam /etc/pam.d/sddm "$HERE/pam/sddm"
+    # SDDM reads every file in sddm.conf.d, so move autologin configs out of it.
+    sddm_autologin_files /etc/sddm.conf.d | while read -r conf; do
+      echo "Turning off autologin: moving $conf to /etc/sddm-$(basename "$conf")$BAK"
+      sudo mv "$conf" "/etc/sddm-$(basename "$conf")$BAK"
+    done
+    if [[ -f /etc/sddm.conf ]] && grep -q '^\[Autologin\]' /etc/sddm.conf; then
+      warn "/etc/sddm.conf also has an [Autologin] section; remove its User= line by hand."
+    fi
+    echo "Takes effect at the next boot. If the login screen ever refuses you:"
+    echo "  Ctrl+Alt+F3, log in, then run $HERE/uninstall.sh"
+  else
+    echo "Skipped. Re-run the installer any time to turn it on."
+  fi
+fi
+
 step "Done"
 cat <<EOF
   sudo      look at the camera; password if it fails

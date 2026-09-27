@@ -36,10 +36,13 @@ through this on a real machine:
 4. **Lock screen**: `Super + Ctrl + L`, press any key → "Scanning face…" under
    the box → unlocks. Lock again, cover the camera and type the password
    straight away: typing is never blocked, Enter unlocks immediately.
-5. **Re-run** the installer: it should change nothing and still pass.
-6. **Uninstall**: `uninstall.sh`. sudo, polkit and the lock screen are back to
-   stock; `ls /etc/pam.d/*face-unlock*` shows nothing.
-7. **With fingerprint** (if you have a reader): repeat 3 and 6 with
+5. **Login screen** (if enabled): reboot. After the disk unlock you get the
+   SDDM login screen, not the desktop. Empty Enter → face → desktop; typing the
+   password also works. Check `Ctrl + Alt + F3` still logs in with the password.
+6. **Re-run** the installer: it should change nothing and still pass.
+7. **Uninstall**: `uninstall.sh`. sudo, polkit, the lock screen and the login
+   screen (autologin back on) are back to stock; `ls /etc/pam.d/*face-unlock*` shows nothing.
+8. **With fingerprint** (if you have a reader): repeat 3 and 7 with
    `omarchy setup security fingerprint` done before install, and again with it
    done after install. Fingerprint must keep working throughout.
 

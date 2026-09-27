@@ -57,3 +57,19 @@ render_polkit_pam_removed() {
   [[ -z $fingerprint ]] || echo "$fingerprint"
   grep -Ev '^[[:space:]]*auth[[:space:]].*(pam_fprintd\.so|omarchy-hw-laptop-closed)' "$original"
 }
+
+# SDDM: files in <dir> that turn on autologin ([Autologin] with a non-empty
+# User=). SDDM reads every file in sddm.conf.d whatever its extension, so
+# disabling one means moving it out of the directory, not renaming it.
+sddm_autologin_files() {
+  local file
+  for file in "$1"/*; do
+    [[ -f $file ]] || continue
+    awk '
+      /^[[:space:]]*\[/ { in_autologin = ($0 ~ /^[[:space:]]*\[Autologin\]/) }
+      in_autologin && /^[[:space:]]*User[[:space:]]*=[[:space:]]*[^[:space:]]/ { found = 1 }
+      END { exit !found }
+    ' "$file" && echo "$file"
+  done
+  return 0
+}

@@ -8,6 +8,7 @@ Windows Hello style face unlock for [Omarchy](https://omarchy.org), using
 | **Lock screen** | Press any key and a face scan starts *beside* the password box. Keep typing if you expect it to fail (dark room, glasses); a recognised face unlocks mid-typing. Empty Enter retries the scan. |
 | **Polkit pop-ups** | The password box comes first, so the camera never fires just because you're reading the prompt. A hint under the box says to press Enter on an empty box to scan your face. |
 | **sudo** | Scans immediately (you just typed `sudo`), falls back to your password. |
+| **Login screen** *(optional)* | Instead of autologin: press Enter on the empty box to scan your face, or type your password. See [Login screen](#login-screen-optional). |
 
 Your password always works everywhere.
 
@@ -31,6 +32,8 @@ The installer:
 7. Installs the polkit and lock screen PAM files.
 8. Swaps the stock lock screen for this plugin, and the stock polkit dialog for
    `yeomanse.face-polkit` (from `polkit/`).
+9. *Optionally* (it asks) turns autologin off and adds face login to the SDDM
+   login screen. See [Login screen](#login-screen-optional).
 
 Every PAM file it changes is backed up to `<file>.bak-face-unlock` first.
 Re-running the installer is safe: it changes nothing that's already in place.
@@ -59,6 +62,31 @@ fingerprint since installing, that choice is kept.
 
 If the lock screen ever refuses you, switch to a TTY (`Ctrl + Alt + F3`), log
 in, and run `omarchy plugin disable yeomanse.face-lock && omarchy plugin enable omarchy.lock`.
+
+## Login screen (optional)
+
+Omarchy unlocks the disk at boot, then logs you straight in (SDDM autologin).
+The installer can turn autologin off so you get a login screen instead: press
+Enter on the empty box to scan your face, or type your password. It's the same
+password-first flow as polkit (`pam/sddm`).
+
+**Think about your disk unlock first.** With autologin, the disk passphrase is
+the only thing standing between a stolen laptop and your desktop. That's fine
+as long as the passphrase is typed at every boot. If you make the disk unlock
+automatic (for example TPM2 without a PIN), turn autologin off, or the laptop
+boots straight to your desktop for anyone.
+
+Notes:
+
+- Logging in with your **password** also unlocks your keyring (it never did
+  with autologin). A face login leaves it locked, as autologin did.
+- SDDM reads **every** file in `/etc/sddm.conf.d/`, whatever its extension, so
+  renaming `autologin.conf` to `autologin.conf.disabled` does not turn it off.
+  The installer moves it out to `/etc/sddm-autologin.conf.bak-face-unlock`;
+  uninstall moves it back.
+- If the login screen ever refuses you: `Ctrl + Alt + F3` gives a text console
+  that uses its own PAM file, so your password works there. Log in and run the
+  uninstaller.
 
 ## How it works
 
