@@ -55,11 +55,12 @@ testify() {
 
 testify "$ROOT/pam/polkit-1" >"$SERVICES/polkit-1"
 testify "$ROOT/pam/omarchy-lock-face" >"$SERVICES/omarchy-lock-face"
+testify "$ROOT/pam/sddm" >"$SERVICES/sddm"
 testify "$FIXTURES/pam/system-auth.stock" >"$SERVICES/system-auth"
 render_sudo_pam "$FIXTURES/pam/sudo.stock" >"$TMP/sudo"
 testify "$TMP/sudo" >"$SERVICES/sudo"
 echo "auth required pam_deny.so" >"$SERVICES/other"
-for service in polkit-1 omarchy-lock-face sudo; do
+for service in polkit-1 omarchy-lock-face sddm sudo; do
   echo "$USER_NAME:$PASSWORD:$service" >>"$PASSDB"
 done
 
@@ -146,6 +147,27 @@ reset_tally
 for _ in $(seq 10); do attempt polkit-1 "wrong" fail; done
 attempt omarchy-lock-face "" pass
 expect_refused "lock face: a locked-out account can't unlock by face"
+
+# --- sddm: login screen, same password-first flow as polkit ---------------------
+
+reset_tally
+attempt sddm "$PASSWORD" pass
+expect_success "sddm: correct password logs in"
+assert_eq 0 "$FACE_CALLS" "sddm: a typed password never touches the camera"
+
+attempt sddm "" pass
+expect_success "sddm: empty Enter + recognised face logs in"
+assert_eq 1 "$FACE_CALLS" "sddm: empty Enter runs the face check once"
+
+attempt sddm "" fail
+expect_refused "sddm: empty Enter + unrecognised face is refused"
+
+reset_tally
+for _ in $(seq 10); do attempt sddm "" fail; done
+attempt sddm "" pass
+expect_refused "sddm: after 10 failures a recognised face is locked out"
+attempt sddm "$PASSWORD" pass
+expect_refused "sddm: after 10 failures the correct password is locked out"
 
 # --- sudo: face first, password fallback ----------------------------------------
 
