@@ -140,6 +140,11 @@ attempts a recognised face won't get you in either.
   (use `linux-enable-ir-emitter-git`; the stable AUR package doesn't build
   against OpenCV 5). Check first: many emitters strobe, so a single dark frame
   doesn't mean it's off.
+- **`omarchy plugin remove`** prints "Restored omarchy.lock." even when it
+  leaves the stock plugin disabled, if that plugin was already off when the
+  clone was enabled. Older versions of this installer set things up that way;
+  re-running the installer fixes the registration. Use `uninstall.sh` before
+  `omarchy plugin remove`, which switches the stock plugins back on itself.
 - **Omarchy updates**: the lock screen and polkit dialog are clones of the stock
   plugins, so they won't pick up upstream changes until this repo is updated.
   The changes are kept as small patches (`patches/`) against the recorded

@@ -55,17 +55,36 @@ wait_for_plugin() {
   die "The shell did not pick up plugin '$id'. Try: omarchy restart shell, then re-run."
 }
 
-# Disable every enabled plugin that replaces $1 (the stock one or a clone of
-# it) other than $2, so only one lock screen / polkit agent is active.
-disable_replacements() {
-  local stock=$1 keep=$2 other
+# Make $2 the one active replacement for the stock plugin $1 (lock screen or
+# polkit agent), in the order Omarchy's registry needs to undo it cleanly:
+#   1. disable other clones of $1 (each puts the stock plugin back as it goes)
+#   2. make sure the stock plugin is on
+#   3. enable ours, which switches the stock one off *and records that it
+#      should come back* when ours is disabled or removed.
+# Disabling the stock plugin ourselves first would skip that record, and
+# `omarchy plugin remove` would then leave no lock screen / polkit agent at all.
+switch_to_replacement() {
+  local stock=$1 ours=$2 other
+  enabled() { omarchy plugin list --json | jq -e --arg id "$1" 'any(.[]; .id == $id and .enabled)' >/dev/null; }
+  restore_recorded() { jq -e --arg id "$1" '(.cloneSourceRestores // []) | index($id)' "$HOME/.config/omarchy/shell.json" >/dev/null 2>&1; }
+
   omarchy plugin list --json |
-    jq -r --arg stock "$stock" --arg keep "$keep" \
-      '.[] | select(.enabled and .id != $keep and (.id == $stock or .clonedFrom == $stock)) | .id' |
+    jq -r --arg stock "$stock" --arg ours "$ours" \
+      '.[] | select(.enabled and .id != $ours and .clonedFrom == $stock) | .id' |
     while read -r other; do
       echo "Disabling $other"
       omarchy plugin disable "$other"
     done
+
+  if enabled "$ours"; then
+    restore_recorded "$ours" && return 0
+    # Enabled the old way (stock disabled first, no restore recorded): redo it.
+    # Stock goes on before ours goes off, so there's always one running.
+    omarchy plugin enable "$stock"
+    omarchy plugin disable "$ours"
+  fi
+  enabled "$stock" || omarchy plugin enable "$stock"
+  omarchy plugin enable "$ours"
 }
 
 TMP=$(mktemp -d)
@@ -173,8 +192,7 @@ fi
 # Only one lock screen may own the session lock: switch off the stock one and
 # any other clone of it before enabling ours.
 wait_for_plugin "$PLUGIN_ID"
-disable_replacements omarchy.lock "$PLUGIN_ID"
-omarchy plugin enable "$PLUGIN_ID"
+switch_to_replacement omarchy.lock "$PLUGIN_ID"
 
 # `omarchy plugin add` installs one plugin per repo (the root), so the polkit
 # dialog plugin ships in polkit/ and is copied into place alongside it.
@@ -185,8 +203,7 @@ rm -rf "$POLKIT_DIR"
 cp -r "$HERE/polkit" "$POLKIT_DIR"
 omarchy-shell shell rescanPlugins >/dev/null
 wait_for_plugin "$POLKIT_ID"
-disable_replacements omarchy.polkit "$POLKIT_ID"
-omarchy plugin enable "$POLKIT_ID"
+switch_to_replacement omarchy.polkit "$POLKIT_ID"
 omarchy restart shell
 
 # ---------------------------------------------------------------------------
